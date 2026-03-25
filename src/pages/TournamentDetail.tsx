@@ -179,14 +179,37 @@ export default function TournamentDetail() {
         <h2 className="text-xl font-heading font-bold mb-4">Participantes ({tournamentParticipants.length})</h2>
 
         {isOrganizer && tournament.status === "upcoming" && (
-          <div className="flex gap-2 mb-4">
-            <Select value={selectedParticipant} onValueChange={setSelectedParticipant}>
-              <SelectTrigger className="flex-1"><SelectValue placeholder="Adicionar participante..." /></SelectTrigger>
-              <SelectContent>
-                {availableParticipants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button onClick={handleAddParticipant} className="gap-1"><UserPlus className="w-4 h-4" /> Adicionar</Button>
+          <div className="mb-4 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar participante pelo nome..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            {(searchQuery || selectedToAdd.size > 0) && filteredAvailable.length > 0 && (
+              <div className="border rounded-lg max-h-48 overflow-y-auto bg-card">
+                {filteredAvailable.map((p) => (
+                  <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 cursor-pointer">
+                    <Checkbox
+                      checked={selectedToAdd.has(p.id)}
+                      onCheckedChange={() => toggleParticipantSelection(p.id)}
+                    />
+                    <span className="text-sm">{p.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {searchQuery && filteredAvailable.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhum participante encontrado.</p>
+            )}
+            {selectedToAdd.size > 0 && (
+              <Button onClick={handleBulkAddParticipants} className="gap-1">
+                <UserPlus className="w-4 h-4" /> Adicionar {selectedToAdd.size} participante(s)
+              </Button>
+            )}
           </div>
         )}
 
