@@ -34,6 +34,7 @@ export type SportModality =
   | "Futebol"
   | "Basquete"
   | "Vôlei"
+  | "Beach Tennis"
   | "Tênis"
   | "Futsal"
   | "Handebol"
