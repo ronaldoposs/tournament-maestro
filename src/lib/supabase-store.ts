@@ -110,43 +110,51 @@ export async function fetchMatches(tournamentId: string) {
   return data;
 }
 
-export async function generateBracket(tournamentId: string) {
-  // Get tournament participants
-  const { data: tps } = await supabase.from("tournament_participants").select("participant_id").eq("tournament_id", tournamentId);
-  if (!tps || tps.length < 2) return;
-
+export async function generateBracket(tournamentId: string, isTeamMode = false) {
   // Delete old matches
   await supabase.from("matches").delete().eq("tournament_id", tournamentId);
 
-  const pIds = tps.map((tp) => tp.participant_id);
-  const size = Math.pow(2, Math.ceil(Math.log2(pIds.length)));
+  let entityIds: (string | null)[];
 
-  // Pad with nulls for byes
-  while (pIds.length < size) pIds.push(null as any);
+  if (isTeamMode) {
+    const { data: teamRows } = await supabase.from("teams").select("id").eq("tournament_id", tournamentId);
+    if (!teamRows || teamRows.length < 2) return;
+    entityIds = teamRows.map((t) => t.id);
+  } else {
+    const { data: tps } = await supabase.from("tournament_participants").select("participant_id").eq("tournament_id", tournamentId);
+    if (!tps || tps.length < 2) return;
+    entityIds = tps.map((tp) => tp.participant_id);
+  }
+
+  const size = Math.pow(2, Math.ceil(Math.log2(entityIds.length)));
+  while (entityIds.length < size) entityIds.push(null);
 
   // Shuffle
-  for (let i = pIds.length - 1; i > 0; i--) {
+  for (let i = entityIds.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [pIds[i], pIds[j]] = [pIds[j], pIds[i]];
+    [entityIds[i], entityIds[j]] = [entityIds[j], entityIds[i]];
   }
 
   const totalRounds = Math.log2(size);
   const matchInserts: any[] = [];
+  const p1Field = isTeamMode ? "team1_id" : "participant1_id";
+  const p2Field = isTeamMode ? "team2_id" : "participant2_id";
+  const winnerField = isTeamMode ? "winner_team_id" : "winner_id";
 
   // First round
   for (let i = 0; i < size / 2; i++) {
-    const p1 = pIds[i * 2] || null;
-    const p2 = pIds[i * 2 + 1] || null;
-    const isBye = !p1 || !p2;
+    const e1 = entityIds[i * 2] || null;
+    const e2 = entityIds[i * 2 + 1] || null;
+    const isBye = !e1 || !e2;
     matchInserts.push({
       tournament_id: tournamentId,
       round: 1,
       position: i,
-      participant1_id: p1,
-      participant2_id: p2,
-      score1: isBye ? (p1 ? 1 : 0) : null,
-      score2: isBye ? (p2 ? 1 : 0) : null,
-      winner_id: isBye ? (p1 || p2) : null,
+      [p1Field]: e1,
+      [p2Field]: e2,
+      score1: isBye ? (e1 ? 1 : 0) : null,
+      score2: isBye ? (e2 ? 1 : 0) : null,
+      [winnerField]: isBye ? (e1 || e2) : null,
       status: isBye ? "completed" : "pending",
     });
   }
@@ -159,8 +167,6 @@ export async function generateBracket(tournamentId: string) {
         tournament_id: tournamentId,
         round,
         position: i,
-        participant1_id: null,
-        participant2_id: null,
         status: "pending",
       });
     }
@@ -175,11 +181,12 @@ export async function generateBracket(tournamentId: string) {
 
   for (let idx = 0; idx < round1.length; idx++) {
     const m = round1[idx];
-    if (m.winner_id && round2.length > 0) {
+    const winnerId = isTeamMode ? m.winner_team_id : m.winner_id;
+    if (winnerId && round2.length > 0) {
       const nextMatch = round2[Math.floor(idx / 2)];
       if (nextMatch) {
-        const field = idx % 2 === 0 ? "participant1_id" : "participant2_id";
-        await supabase.from("matches").update({ [field]: m.winner_id }).eq("id", nextMatch.id);
+        const field = idx % 2 === 0 ? p1Field : p2Field;
+        await supabase.from("matches").update({ [field]: winnerId }).eq("id", nextMatch.id);
       }
     }
   }
@@ -189,41 +196,58 @@ export async function generateBracket(tournamentId: string) {
 }
 
 export async function recordResult(matchId: string, score1: number, score2: number) {
-  // Get the match
   const { data: match } = await supabase.from("matches").select("*").eq("id", matchId).single();
-  if (!match || !match.participant1_id || !match.participant2_id) return;
+  if (!match) return;
 
-  const winnerId = score1 > score2 ? match.participant1_id : score2 > score1 ? match.participant2_id : null;
-  const loserId = winnerId === match.participant1_id ? match.participant2_id : match.participant1_id;
+  // Determine if team mode based on which fields are populated
+  const isTeamMode = !!(match.team1_id || match.team2_id);
 
-  // Update match
-  await supabase.from("matches").update({ score1, score2, winner_id: winnerId, status: "completed" }).eq("id", matchId);
+  if (isTeamMode) {
+    if (!match.team1_id || !match.team2_id) return;
+    const winnerTeamId = score1 > score2 ? match.team1_id : score2 > score1 ? match.team2_id : null;
 
-  // Advance winner to next round
-  if (winnerId) {
-    const nextRound = match.round + 1;
-    const nextPosition = Math.floor(match.position / 2);
-    const { data: nextMatch } = await supabase
-      .from("matches")
-      .select("id")
-      .eq("tournament_id", match.tournament_id)
-      .eq("round", nextRound)
-      .eq("position", nextPosition)
-      .maybeSingle();
+    await supabase.from("matches").update({ score1, score2, winner_team_id: winnerTeamId, status: "completed" }).eq("id", matchId);
 
-    if (nextMatch) {
-      const field = match.position % 2 === 0 ? "participant1_id" : "participant2_id";
-      await supabase.from("matches").update({ [field]: winnerId }).eq("id", nextMatch.id);
+    if (winnerTeamId) {
+      const nextRound = match.round + 1;
+      const nextPosition = Math.floor(match.position / 2);
+      const { data: nextMatch } = await supabase
+        .from("matches").select("id")
+        .eq("tournament_id", match.tournament_id).eq("round", nextRound).eq("position", nextPosition)
+        .maybeSingle();
+      if (nextMatch) {
+        const field = match.position % 2 === 0 ? "team1_id" : "team2_id";
+        await supabase.from("matches").update({ [field]: winnerTeamId }).eq("id", nextMatch.id);
+      }
     }
+  } else {
+    if (!match.participant1_id || !match.participant2_id) return;
+    const winnerId = score1 > score2 ? match.participant1_id : score2 > score1 ? match.participant2_id : null;
+    const loserId = winnerId === match.participant1_id ? match.participant2_id : match.participant1_id;
 
-    // Update participant stats
-    const { data: winner } = await supabase.from("participants").select("wins, points").eq("id", winnerId).single();
-    if (winner) {
-      await supabase.from("participants").update({ wins: winner.wins + 1, points: winner.points + 3 }).eq("id", winnerId);
-    }
-    const { data: loser } = await supabase.from("participants").select("losses").eq("id", loserId!).single();
-    if (loser) {
-      await supabase.from("participants").update({ losses: loser.losses + 1 }).eq("id", loserId!);
+    await supabase.from("matches").update({ score1, score2, winner_id: winnerId, status: "completed" }).eq("id", matchId);
+
+    if (winnerId) {
+      const nextRound = match.round + 1;
+      const nextPosition = Math.floor(match.position / 2);
+      const { data: nextMatch } = await supabase
+        .from("matches").select("id")
+        .eq("tournament_id", match.tournament_id).eq("round", nextRound).eq("position", nextPosition)
+        .maybeSingle();
+      if (nextMatch) {
+        const field = match.position % 2 === 0 ? "participant1_id" : "participant2_id";
+        await supabase.from("matches").update({ [field]: winnerId }).eq("id", nextMatch.id);
+      }
+
+      // Update participant stats
+      const { data: winner } = await supabase.from("participants").select("wins, points").eq("id", winnerId).single();
+      if (winner) {
+        await supabase.from("participants").update({ wins: winner.wins + 1, points: winner.points + 3 }).eq("id", winnerId);
+      }
+      const { data: loser } = await supabase.from("participants").select("losses").eq("id", loserId!).single();
+      if (loser) {
+        await supabase.from("participants").update({ losses: loser.losses + 1 }).eq("id", loserId!);
+      }
     }
   }
 
