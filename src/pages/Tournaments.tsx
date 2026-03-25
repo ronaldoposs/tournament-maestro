@@ -107,6 +107,14 @@ export default function Tournaments() {
                   </SelectContent>
                 </Select>
                 <Input type="text" placeholder="Data (ex: 2026-04-15)" value={date} onChange={(e) => setDate(e.target.value)} />
+                <Select value={mode} onValueChange={setMode}>
+                  <SelectTrigger><SelectValue placeholder="Modo de jogo" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="solo">Solo (individual)</SelectItem>
+                    <SelectItem value="duplas">Duplas</SelectItem>
+                    <SelectItem value="equipes">Equipes</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button onClick={handleSubmit} className="w-full">{editId ? "Salvar" : "Criar Torneio"}</Button>
               </div>
             </DialogContent>
