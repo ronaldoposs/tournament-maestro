@@ -11,7 +11,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as api from "@/lib/supabase-store";
 
-const sports: SportModality[] = ["Futebol", "Basquete", "Vôlei", "Tênis", "Futsal", "Handebol", "Outro"];
+const sports: SportModality[] = [
+  "Futebol",
+  "Basquete",
+  "Beach Tennis",
+  "Vôlei",
+  "Tênis",
+  "Futsal",
+  "Handebol",
+  "Outro",
+];
 
 interface TournamentRow {
   id: string;
@@ -32,7 +41,9 @@ export default function Tournaments() {
   const [date, setDate] = useState("");
   const [mode, setMode] = useState("solo");
 
-  useEffect(() => { loadTournaments(); }, []);
+  useEffect(() => {
+    loadTournaments();
+  }, []);
 
   async function loadTournaments() {
     const data = await api.fetchTournaments();
@@ -40,11 +51,19 @@ export default function Tournaments() {
     // Fetch participant counts
     const { data: tps } = await supabase.from("tournament_participants").select("tournament_id");
     const counts: Record<string, number> = {};
-    tps?.forEach((tp) => { counts[tp.tournament_id] = (counts[tp.tournament_id] || 0) + 1; });
+    tps?.forEach((tp) => {
+      counts[tp.tournament_id] = (counts[tp.tournament_id] || 0) + 1;
+    });
     setParticipantCounts(counts);
   }
 
-  const resetForm = () => { setName(""); setSport(""); setDate(""); setMode("solo"); setEditId(null); };
+  const resetForm = () => {
+    setName("");
+    setSport("");
+    setDate("");
+    setMode("solo");
+    setEditId(null);
+  };
 
   const handleSubmit = async () => {
     if (!name || !sport || !date) return;
@@ -90,9 +109,17 @@ export default function Tournaments() {
           </p>
         </div>
         {isOrganizer && (
-          <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (!v) resetForm();
+            }}
+          >
             <DialogTrigger asChild>
-              <Button className="gap-2"><Plus className="w-4 h-4" /> Novo Torneio</Button>
+              <Button className="gap-2">
+                <Plus className="w-4 h-4" /> Novo Torneio
+              </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -101,21 +128,36 @@ export default function Tournaments() {
               <div className="space-y-4 mt-4">
                 <Input placeholder="Nome do torneio" value={name} onChange={(e) => setName(e.target.value)} />
                 <Select value={sport} onValueChange={setSport}>
-                  <SelectTrigger><SelectValue placeholder="Modalidade esportiva" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Modalidade esportiva" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {sports.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {sports.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <Input type="text" placeholder="Data (ex: 2026-04-15)" value={date} onChange={(e) => setDate(e.target.value)} />
+                <Input
+                  type="text"
+                  placeholder="Data (ex: 2026-04-15)"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
                 <Select value={mode} onValueChange={setMode}>
-                  <SelectTrigger><SelectValue placeholder="Modo de jogo" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Modo de jogo" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="solo">Solo (individual)</SelectItem>
                     <SelectItem value="duplas">Duplas</SelectItem>
                     <SelectItem value="equipes">Equipes</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button onClick={handleSubmit} className="w-full">{editId ? "Salvar" : "Criar Torneio"}</Button>
+                <Button onClick={handleSubmit} className="w-full">
+                  {editId ? "Salvar" : "Criar Torneio"}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -135,7 +177,9 @@ export default function Tournaments() {
                   <h3 className="font-heading font-bold text-lg">{t.name}</h3>
                   <p className="text-sm text-muted-foreground">{t.sport}</p>
                 </div>
-                <span className={`stat-badge ${t.status === "active" ? "bg-accent/15 text-accent" : t.status === "finished" ? "bg-muted text-muted-foreground" : "bg-sport-orange/15 text-sport-orange"}`}>
+                <span
+                  className={`stat-badge ${t.status === "active" ? "bg-accent/15 text-accent" : t.status === "finished" ? "bg-muted text-muted-foreground" : "bg-sport-orange/15 text-sport-orange"}`}
+                >
                   {t.status === "active" ? "Ativo" : t.status === "finished" ? "Finalizado" : "Próximo"}
                 </span>
               </div>
@@ -146,14 +190,21 @@ export default function Tournaments() {
               </div>
               <div className="flex gap-2">
                 <Link to={`/tournaments/${t.id}`} className="flex-1">
-                  <Button variant="outline" size="sm" className="w-full gap-1"><Eye className="w-3 h-3" /> Ver</Button>
+                  <Button variant="outline" size="sm" className="w-full gap-1">
+                    <Eye className="w-3 h-3" /> Ver
+                  </Button>
                 </Link>
                 {isOrganizer && (
                   <>
                     <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleEdit(t)}>
                       <Pencil className="w-3 h-3" />
                     </Button>
-                    <Button variant="outline" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => handleDelete(t.id)}>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9 text-destructive hover:text-destructive"
+                      onClick={() => handleDelete(t.id)}
+                    >
                       <Trash2 className="w-3 h-3" />
                     </Button>
                   </>
