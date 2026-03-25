@@ -1,11 +1,20 @@
-import { useRef, useCallback, useSyncExternalStore } from "react";
+import { useState, useEffect, useRef } from "react";
 import { store } from "@/lib/store";
 
 export function useStore<T>(selector: (s: typeof store) => T): T {
   const selectorRef = useRef(selector);
   selectorRef.current = selector;
 
-  const getSnapshot = useCallback(() => selectorRef.current(store), []);
+  const [value, setValue] = useState(() => selector(store));
 
-  return useSyncExternalStore(store.subscribe, getSnapshot);
+  useEffect(() => {
+    setValue(selectorRef.current(store));
+
+    const unsub = store.subscribe(() => {
+      setValue(selectorRef.current(store));
+    });
+    return () => { unsub(); };
+  }, []);
+
+  return value;
 }
