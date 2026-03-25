@@ -48,7 +48,7 @@ function AppRoutes() {
         <Route path="/participants" element={<Participants />} />
         <Route path="/brackets" element={<Brackets />} />
         <Route path="/rankings" element={<Rankings />} />
-        <Route path="/reports" element={<Reports />} />
+        <Route path="/reports" element={<ProtectedRoute role="organizer"><Reports /></ProtectedRoute>} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
