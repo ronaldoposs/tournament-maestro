@@ -2,8 +2,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, GitBranch, UserPlus, Users, X, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, GitBranch, UserPlus, Users, X, Plus, Trash2, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import * as api from "@/lib/supabase-store";
@@ -18,7 +19,8 @@ export default function TournamentDetail() {
   const [tournamentParticipantIds, setTournamentParticipantIds] = useState<string[]>([]);
   const [matches, setMatches] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
-  const [selectedParticipant, setSelectedParticipant] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
   const [newTeamName, setNewTeamName] = useState("");
   const [selectedTeamForMember, setSelectedTeamForMember] = useState("");
   const [selectedMember, setSelectedMember] = useState("");
@@ -56,20 +58,35 @@ export default function TournamentDetail() {
 
   const isTeamMode = tournament.mode === "duplas" || tournament.mode === "equipes";
   const modeLabel = tournament.mode === "duplas" ? "Duplas" : tournament.mode === "equipes" ? "Equipes" : "Solo";
-  const availableParticipants = allParticipants.filter((p) => !tournamentParticipantIds.includes(p.id));
+  const filteredAvailable = allParticipants
+    .filter((p) => !tournamentParticipantIds.includes(p.id))
+    .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const tournamentParticipants = allParticipants.filter((p) => tournamentParticipantIds.includes(p.id));
 
   // Get all participant IDs already assigned to teams
   const assignedToTeamIds = new Set(teams.flatMap((t: any) => t.team_members?.map((m: any) => m.participant_id) || []));
   const unassignedParticipants = tournamentParticipants.filter((p) => !assignedToTeamIds.has(p.id));
 
-  const handleAddParticipant = async () => {
-    if (!selectedParticipant) return;
+  const handleBulkAddParticipants = async () => {
+    if (selectedToAdd.size === 0) return;
     try {
-      await api.addParticipantToTournament(tournament.id, selectedParticipant);
-      setSelectedParticipant("");
+      for (const pid of selectedToAdd) {
+        await api.addParticipantToTournament(tournament.id, pid);
+      }
+      toast.success(`${selectedToAdd.size} participante(s) adicionado(s)!`);
+      setSelectedToAdd(new Set());
+      setSearchQuery("");
       loadAll();
     } catch (e: any) { toast.error(e.message); }
+  };
+
+  const toggleParticipantSelection = (pid: string) => {
+    setSelectedToAdd((prev) => {
+      const next = new Set(prev);
+      if (next.has(pid)) next.delete(pid);
+      else next.add(pid);
+      return next;
+    });
   };
 
   const handleRemoveParticipant = async (pid: string) => {
@@ -162,14 +179,37 @@ export default function TournamentDetail() {
         <h2 className="text-xl font-heading font-bold mb-4">Participantes ({tournamentParticipants.length})</h2>
 
         {isOrganizer && tournament.status === "upcoming" && (
-          <div className="flex gap-2 mb-4">
-            <Select value={selectedParticipant} onValueChange={setSelectedParticipant}>
-              <SelectTrigger className="flex-1"><SelectValue placeholder="Adicionar participante..." /></SelectTrigger>
-              <SelectContent>
-                {availableParticipants.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button onClick={handleAddParticipant} className="gap-1"><UserPlus className="w-4 h-4" /> Adicionar</Button>
+          <div className="mb-4 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar participante pelo nome..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            {(searchQuery || selectedToAdd.size > 0) && filteredAvailable.length > 0 && (
+              <div className="border rounded-lg max-h-48 overflow-y-auto bg-card">
+                {filteredAvailable.map((p) => (
+                  <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-muted/50 cursor-pointer">
+                    <Checkbox
+                      checked={selectedToAdd.has(p.id)}
+                      onCheckedChange={() => toggleParticipantSelection(p.id)}
+                    />
+                    <span className="text-sm">{p.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {searchQuery && filteredAvailable.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhum participante encontrado.</p>
+            )}
+            {selectedToAdd.size > 0 && (
+              <Button onClick={handleBulkAddParticipants} className="gap-1">
+                <UserPlus className="w-4 h-4" /> Adicionar {selectedToAdd.size} participante(s)
+              </Button>
+            )}
           </div>
         )}
 
