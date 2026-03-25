@@ -1,10 +1,22 @@
+import { useEffect, useState } from "react";
 import { Trophy, Users, GitBranch, TrendingUp } from "lucide-react";
-import { useStore } from "@/hooks/useStore";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Dashboard() {
-  const tournaments = useStore((s) => s.getTournaments());
-  const participants = useStore((s) => s.getParticipants());
+  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [participants, setParticipants] = useState<any[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from("tournaments").select("*").order("created_at", { ascending: false }),
+      supabase.from("participants").select("*").order("points", { ascending: false }),
+    ]).then(([{ data: t }, { data: p }]) => {
+      setTournaments(t || []);
+      setParticipants(p || []);
+    });
+  }, []);
+
   const active = tournaments.filter((t) => t.status === "active").length;
   const finished = tournaments.filter((t) => t.status === "finished").length;
 
@@ -66,21 +78,18 @@ export default function Dashboard() {
             <p className="text-muted-foreground text-sm">Nenhum participante cadastrado ainda.</p>
           ) : (
             <div className="space-y-3">
-              {[...participants]
-                .sort((a, b) => b.points - a.points)
-                .slice(0, 5)
-                .map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors">
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${i === 0 ? "bg-sport-gold text-foreground" : i === 1 ? "bg-muted text-muted-foreground" : "bg-sport-orange/20 text-sport-orange"}`}>
-                      {i + 1}
-                    </span>
-                    <div className="flex-1">
-                      <p className="font-medium">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">{p.team || "Individual"}</p>
-                    </div>
-                    <span className="font-heading font-bold text-accent">{p.points} pts</span>
+              {participants.slice(0, 5).map((p, i) => (
+                <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors">
+                  <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${i === 0 ? "bg-sport-gold text-foreground" : i === 1 ? "bg-muted text-muted-foreground" : "bg-sport-orange/20 text-sport-orange"}`}>
+                    {i + 1}
+                  </span>
+                  <div className="flex-1">
+                    <p className="font-medium">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">{p.team || "Individual"}</p>
                   </div>
-                ))}
+                  <span className="font-heading font-bold text-accent">{p.points} pts</span>
+                </div>
+              ))}
             </div>
           )}
         </div>
