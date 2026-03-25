@@ -30,6 +30,7 @@ export default function Tournaments() {
   const [name, setName] = useState("");
   const [sport, setSport] = useState<string>("");
   const [date, setDate] = useState("");
+  const [mode, setMode] = useState("solo");
 
   useEffect(() => { loadTournaments(); }, []);
 

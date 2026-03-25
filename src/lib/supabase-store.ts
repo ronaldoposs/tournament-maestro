@@ -14,11 +14,43 @@ export async function fetchTournament(id: string) {
   return data;
 }
 
-export async function createTournament(t: { name: string; sport: string; date: string }) {
+export async function createTournament(t: { name: string; sport: string; date: string; mode?: string }) {
   const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase.from("tournaments").insert({ ...t, created_by: user?.id }).select().single();
   if (error) throw error;
   return data;
+}
+
+// Teams
+export async function fetchTeams(tournamentId: string) {
+  const { data, error } = await supabase
+    .from("teams")
+    .select("*, team_members(participant_id, participants(*))")
+    .eq("tournament_id", tournamentId)
+    .order("name");
+  if (error) throw error;
+  return data;
+}
+
+export async function createTeam(tournamentId: string, name: string) {
+  const { data, error } = await supabase.from("teams").insert({ tournament_id: tournamentId, name }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteTeam(teamId: string) {
+  const { error } = await supabase.from("teams").delete().eq("id", teamId);
+  if (error) throw error;
+}
+
+export async function addMemberToTeam(teamId: string, participantId: string) {
+  const { error } = await supabase.from("team_members").insert({ team_id: teamId, participant_id: participantId });
+  if (error) throw error;
+}
+
+export async function removeMemberFromTeam(teamId: string, participantId: string) {
+  const { error } = await supabase.from("team_members").delete().eq("team_id", teamId).eq("participant_id", participantId);
+  if (error) throw error;
 }
 
 export async function updateTournament(id: string, data: Record<string, unknown>) {
