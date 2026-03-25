@@ -142,6 +142,7 @@ export default function Tournaments() {
               <div className="text-sm text-muted-foreground">
                 <p>📅 {t.date}</p>
                 <p>👥 {participantCounts[t.id] || 0} participantes</p>
+                <p>🎮 {(t as any).mode === "duplas" ? "Duplas" : (t as any).mode === "equipes" ? "Equipes" : "Solo"}</p>
               </div>
               <div className="flex gap-2">
                 <Link to={`/tournaments/${t.id}`} className="flex-1">
