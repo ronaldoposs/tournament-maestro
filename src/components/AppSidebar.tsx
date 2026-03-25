@@ -1,17 +1,23 @@
-import { Trophy, Users, LayoutDashboard, GitBranch, Medal } from "lucide-react";
+import { Trophy, Users, LayoutDashboard, GitBranch, Medal, FileBarChart, LogOut } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
-const navItems = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/tournaments", label: "Torneios", icon: Trophy },
-  { to: "/participants", label: "Participantes", icon: Users },
-  { to: "/brackets", label: "Chaveamentos", icon: GitBranch },
-  { to: "/rankings", label: "Classificação", icon: Medal },
+const allNavItems = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["organizer", "participant"] },
+  { to: "/tournaments", label: "Torneios", icon: Trophy, roles: ["organizer", "participant"] },
+  { to: "/participants", label: "Participantes", icon: Users, roles: ["organizer"] },
+  { to: "/brackets", label: "Chaveamentos", icon: GitBranch, roles: ["organizer", "participant"] },
+  { to: "/rankings", label: "Classificação", icon: Medal, roles: ["organizer", "participant"] },
+  { to: "/reports", label: "Relatórios", icon: FileBarChart, roles: ["organizer", "participant"] },
 ];
 
 export default function AppSidebar() {
   const { pathname } = useLocation();
+  const { role, displayName } = useAuth();
+
+  const navItems = allNavItems.filter((item) => item.roles.includes(role || "participant"));
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
@@ -46,9 +52,22 @@ export default function AppSidebar() {
         })}
       </nav>
 
-      <div className="p-4 mx-3 mb-4 rounded-lg bg-sidebar-accent">
-        <p className="text-xs text-sidebar-foreground/60 font-medium">Papel atual</p>
-        <p className="text-sm font-semibold text-sidebar-foreground">Organizador</p>
+      <div className="p-4 mx-3 mb-2 rounded-lg bg-sidebar-accent">
+        <p className="text-xs text-sidebar-foreground/60 font-medium">Conectado como</p>
+        <p className="text-sm font-semibold text-sidebar-foreground truncate">{displayName}</p>
+        <p className="text-xs text-sidebar-foreground/60 capitalize mt-0.5">
+          {role === "organizer" ? "Organizador" : "Participante"}
+        </p>
+      </div>
+
+      <div className="px-3 mb-4">
+        <button
+          onClick={() => supabase.auth.signOut()}
+          className="flex items-center gap-2 px-4 py-2 w-full rounded-lg text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Sair
+        </button>
       </div>
     </aside>
   );

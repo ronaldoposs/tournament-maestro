@@ -1,18 +1,42 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useStore } from "@/hooks/useStore";
-import { store } from "@/lib/store";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, GitBranch, UserPlus, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import * as api from "@/lib/supabase-store";
+import { toast } from "sonner";
 
 export default function TournamentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const tournament = useStore((s) => s.getTournament(id!));
-  const allParticipants = useStore((s) => s.getParticipants());
-  const matches = useStore((s) => s.getMatches(id!));
+  const { isOrganizer } = useAuth();
+  const [tournament, setTournament] = useState<any>(null);
+  const [allParticipants, setAllParticipants] = useState<any[]>([]);
+  const [tournamentParticipantIds, setTournamentParticipantIds] = useState<string[]>([]);
+  const [matches, setMatches] = useState<any[]>([]);
   const [selectedParticipant, setSelectedParticipant] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadAll(); }, [id]);
+
+  async function loadAll() {
+    if (!id) return;
+    const [t, allP, tps, m] = await Promise.all([
+      api.fetchTournament(id),
+      api.fetchParticipants(),
+      api.fetchTournamentParticipants(id),
+      api.fetchMatches(id),
+    ]);
+    setTournament(t);
+    setAllParticipants(allP);
+    setTournamentParticipantIds(tps.map((tp) => tp.participant_id));
+    setMatches(m);
+    setLoading(false);
+  }
+
+  if (loading) return <div className="text-center py-20 text-muted-foreground">Carregando...</div>;
 
   if (!tournament) {
     return (
@@ -23,13 +47,31 @@ export default function TournamentDetail() {
     );
   }
 
-  const availableParticipants = allParticipants.filter((p) => !tournament.participants.includes(p.id));
-  const tournamentParticipants = allParticipants.filter((p) => tournament.participants.includes(p.id));
+  const availableParticipants = allParticipants.filter((p) => !tournamentParticipantIds.includes(p.id));
+  const tournamentParticipants = allParticipants.filter((p) => tournamentParticipantIds.includes(p.id));
 
-  const handleAddParticipant = () => {
+  const handleAddParticipant = async () => {
     if (!selectedParticipant) return;
-    store.addParticipantToTournament(tournament.id, selectedParticipant);
-    setSelectedParticipant("");
+    try {
+      await api.addParticipantToTournament(tournament.id, selectedParticipant);
+      setSelectedParticipant("");
+      loadAll();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const handleRemoveParticipant = async (pid: string) => {
+    try {
+      await api.removeParticipantFromTournament(tournament.id, pid);
+      loadAll();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const handleGenerateBracket = async () => {
+    try {
+      await api.generateBracket(tournament.id);
+      loadAll();
+      toast.success("Chaveamento gerado!");
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const getParticipantName = (pid: string | null) => {
@@ -60,11 +102,10 @@ export default function TournamentDetail() {
         </span>
       </div>
 
-      {/* Participants section */}
       <div className="card-sport p-6">
         <h2 className="text-xl font-heading font-bold mb-4">Participantes ({tournamentParticipants.length})</h2>
 
-        {tournament.status === "upcoming" && (
+        {isOrganizer && tournament.status === "upcoming" && (
           <div className="flex gap-2 mb-4">
             <Select value={selectedParticipant} onValueChange={setSelectedParticipant}>
               <SelectTrigger className="flex-1"><SelectValue placeholder="Adicionar participante..." /></SelectTrigger>
@@ -83,8 +124,8 @@ export default function TournamentDetail() {
             {tournamentParticipants.map((p) => (
               <span key={p.id} className="stat-badge bg-secondary text-secondary-foreground">
                 {p.name}
-                {tournament.status === "upcoming" && (
-                  <button onClick={() => store.removeParticipantFromTournament(tournament.id, p.id)} className="ml-1 hover:text-destructive">
+                {isOrganizer && tournament.status === "upcoming" && (
+                  <button onClick={() => handleRemoveParticipant(p.id)} className="ml-1 hover:text-destructive">
                     <X className="w-3 h-3" />
                   </button>
                 )}
@@ -94,14 +135,12 @@ export default function TournamentDetail() {
         )}
       </div>
 
-      {/* Generate Bracket */}
-      {tournament.status === "upcoming" && tournamentParticipants.length >= 2 && (
-        <Button onClick={() => store.generateBracket(tournament.id)} className="gap-2">
+      {isOrganizer && tournament.status === "upcoming" && tournamentParticipants.length >= 2 && (
+        <Button onClick={handleGenerateBracket} className="gap-2">
           <GitBranch className="w-4 h-4" /> Gerar Chaveamento
         </Button>
       )}
 
-      {/* Bracket */}
       {matches.length > 0 && (
         <div className="card-sport p-6">
           <h2 className="text-xl font-heading font-bold mb-6">Chaveamento</h2>
@@ -113,7 +152,7 @@ export default function TournamentDetail() {
                   <h3 className="text-sm font-semibold text-muted-foreground text-center">{roundLabels(round, rounds)}</h3>
                   <div className="flex flex-col gap-4 justify-around flex-1">
                     {roundMatches.map((m) => (
-                      <MatchCard key={m.id} match={m} getName={getParticipantName} />
+                      <MatchCard key={m.id} match={m} getName={getParticipantName} isOrganizer={isOrganizer} onResult={loadAll} />
                     ))}
                   </div>
                 </div>
@@ -126,23 +165,26 @@ export default function TournamentDetail() {
   );
 }
 
-function MatchCard({ match, getName }: { match: any; getName: (id: string | null) => string }) {
+function MatchCard({ match, getName, isOrganizer, onResult }: { match: any; getName: (id: string | null) => string; isOrganizer: boolean; onResult: () => void }) {
   const [s1, setS1] = useState("");
   const [s2, setS2] = useState("");
 
-  const canRecord = match.status === "pending" && match.participant1Id && match.participant2Id;
+  const canRecord = isOrganizer && match.status === "pending" && match.participant1_id && match.participant2_id;
 
-  const handleRecord = () => {
+  const handleRecord = async () => {
     const score1 = parseInt(s1);
     const score2 = parseInt(s2);
     if (isNaN(score1) || isNaN(score2) || score1 === score2) return;
-    store.recordResult(match.id, score1, score2);
+    try {
+      await api.recordResult(match.id, score1, score2);
+      onResult();
+    } catch (e: any) { toast.error(e.message); }
   };
 
   return (
     <div className="border rounded-lg p-3 bg-card space-y-2">
-      <div className={`flex items-center justify-between text-sm ${match.winnerId === match.participant1Id ? "font-bold" : ""}`}>
-        <span className="truncate max-w-[120px]">{getName(match.participant1Id)}</span>
+      <div className={`flex items-center justify-between text-sm ${match.winner_id === match.participant1_id ? "font-bold" : ""}`}>
+        <span className="truncate max-w-[120px]">{getName(match.participant1_id)}</span>
         {match.status === "completed" ? (
           <span className="font-heading font-bold">{match.score1}</span>
         ) : canRecord ? (
@@ -150,8 +192,8 @@ function MatchCard({ match, getName }: { match: any; getName: (id: string | null
         ) : null}
       </div>
       <div className="border-t" />
-      <div className={`flex items-center justify-between text-sm ${match.winnerId === match.participant2Id ? "font-bold" : ""}`}>
-        <span className="truncate max-w-[120px]">{getName(match.participant2Id)}</span>
+      <div className={`flex items-center justify-between text-sm ${match.winner_id === match.participant2_id ? "font-bold" : ""}`}>
+        <span className="truncate max-w-[120px]">{getName(match.participant2_id)}</span>
         {match.status === "completed" ? (
           <span className="font-heading font-bold">{match.score2}</span>
         ) : canRecord ? (
