@@ -58,7 +58,9 @@ export default function TournamentDetail() {
 
   const isTeamMode = tournament.mode === "duplas" || tournament.mode === "equipes";
   const modeLabel = tournament.mode === "duplas" ? "Duplas" : tournament.mode === "equipes" ? "Equipes" : "Solo";
-  const availableParticipants = allParticipants.filter((p) => !tournamentParticipantIds.includes(p.id));
+  const filteredAvailable = allParticipants
+    .filter((p) => !tournamentParticipantIds.includes(p.id))
+    .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const tournamentParticipants = allParticipants.filter((p) => tournamentParticipantIds.includes(p.id));
 
   // Get all participant IDs already assigned to teams
