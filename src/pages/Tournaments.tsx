@@ -68,7 +68,7 @@ export default function Tournaments() {
                   {sports.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Input type="date" placeholder="dd/mm/aaaa" value={date} onChange={(e) => setDate(e.target.value)} />
               <Button onClick={handleSubmit} className="w-full">{editId ? "Salvar" : "Criar Torneio"}</Button>
             </div>
           </DialogContent>
