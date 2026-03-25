@@ -50,9 +50,9 @@ export default function Tournaments() {
     if (!name || !sport || !date) return;
     try {
       if (editId) {
-        await api.updateTournament(editId, { name, sport, date });
+        await api.updateTournament(editId, { name, sport, date, mode });
       } else {
-        await api.createTournament({ name, sport, date });
+        await api.createTournament({ name, sport, date, mode });
       }
       resetForm();
       setOpen(false);
@@ -66,6 +66,7 @@ export default function Tournaments() {
     setName(t.name);
     setSport(t.sport);
     setDate(t.date);
+    setMode((t as any).mode || "solo");
     setEditId(t.id);
     setOpen(true);
   };
