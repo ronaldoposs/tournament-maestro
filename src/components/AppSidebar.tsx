@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 const allNavItems = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["organizer", "participant"] },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["organizer"] },
   { to: "/tournaments", label: "Torneios", icon: Trophy, roles: ["organizer", "participant"] },
   { to: "/participants", label: "Participantes", icon: Users, roles: ["organizer"] },
   { to: "/brackets", label: "Chaveamentos", icon: GitBranch, roles: ["organizer", "participant"] },
