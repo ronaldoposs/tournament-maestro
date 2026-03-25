@@ -67,13 +67,26 @@ export default function TournamentDetail() {
   const assignedToTeamIds = new Set(teams.flatMap((t: any) => t.team_members?.map((m: any) => m.participant_id) || []));
   const unassignedParticipants = tournamentParticipants.filter((p) => !assignedToTeamIds.has(p.id));
 
-  const handleAddParticipant = async () => {
-    if (!selectedParticipant) return;
+  const handleBulkAddParticipants = async () => {
+    if (selectedToAdd.size === 0) return;
     try {
-      await api.addParticipantToTournament(tournament.id, selectedParticipant);
-      setSelectedParticipant("");
+      for (const pid of selectedToAdd) {
+        await api.addParticipantToTournament(tournament.id, pid);
+      }
+      toast.success(`${selectedToAdd.size} participante(s) adicionado(s)!`);
+      setSelectedToAdd(new Set());
+      setSearchQuery("");
       loadAll();
     } catch (e: any) { toast.error(e.message); }
+  };
+
+  const toggleParticipantSelection = (pid: string) => {
+    setSelectedToAdd((prev) => {
+      const next = new Set(prev);
+      if (next.has(pid)) next.delete(pid);
+      else next.add(pid);
+      return next;
+    });
   };
 
   const handleRemoveParticipant = async (pid: string) => {
