@@ -44,7 +44,7 @@ export default function Tournaments() {
     setParticipantCounts(counts);
   }
 
-  const resetForm = () => { setName(""); setSport(""); setDate(""); setEditId(null); };
+  const resetForm = () => { setName(""); setSport(""); setDate(""); setMode("solo"); setEditId(null); };
 
   const handleSubmit = async () => {
     if (!name || !sport || !date) return;
