@@ -43,7 +43,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<ProtectedRoute role="organizer" redirectTo="/tournaments"><Dashboard /></ProtectedRoute>} />
         <Route path="/tournaments" element={<Tournaments />} />
         <Route path="/tournaments/:id" element={<TournamentDetail />} />
         <Route path="/participants" element={<Participants />} />
