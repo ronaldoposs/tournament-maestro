@@ -12,6 +12,7 @@ import Participants from "./pages/Participants";
 import Brackets from "./pages/Brackets";
 import Rankings from "./pages/Rankings";
 import Reports from "./pages/Reports";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
