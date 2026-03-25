@@ -10,7 +10,7 @@ const allNavItems = [
   { to: "/participants", label: "Participantes", icon: Users, roles: ["organizer"] },
   { to: "/brackets", label: "Chaveamentos", icon: GitBranch, roles: ["organizer", "participant"] },
   { to: "/rankings", label: "Classificação", icon: Medal, roles: ["organizer", "participant"] },
-  { to: "/reports", label: "Relatórios", icon: FileBarChart, roles: ["organizer", "participant"] },
+  { to: "/reports", label: "Relatórios", icon: FileBarChart, roles: ["organizer"] },
 ];
 
 export default function AppSidebar() {

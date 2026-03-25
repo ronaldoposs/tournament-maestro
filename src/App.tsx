@@ -12,6 +12,7 @@ import Participants from "./pages/Participants";
 import Brackets from "./pages/Brackets";
 import Rankings from "./pages/Rankings";
 import Reports from "./pages/Reports";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -48,7 +49,7 @@ function AppRoutes() {
         <Route path="/participants" element={<Participants />} />
         <Route path="/brackets" element={<Brackets />} />
         <Route path="/rankings" element={<Rankings />} />
-        <Route path="/reports" element={<Reports />} />
+        <Route path="/reports" element={<ProtectedRoute role="organizer"><Reports /></ProtectedRoute>} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
