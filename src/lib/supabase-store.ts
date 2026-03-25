@@ -206,6 +206,8 @@ export async function recordResult(matchId: string, score1: number, score2: numb
     if (!match.team1_id || !match.team2_id) return;
     const winnerTeamId = score1 > score2 ? match.team1_id : score2 > score1 ? match.team2_id : null;
 
+    const loserTeamId = winnerTeamId === match.team1_id ? match.team2_id : match.team1_id;
+
     await supabase.from("matches").update({ score1, score2, winner_team_id: winnerTeamId, status: "completed" }).eq("id", matchId);
 
     if (winnerTeamId) {
@@ -218,6 +220,29 @@ export async function recordResult(matchId: string, score1: number, score2: numb
       if (nextMatch) {
         const field = match.position % 2 === 0 ? "team1_id" : "team2_id";
         await supabase.from("matches").update({ [field]: winnerTeamId }).eq("id", nextMatch.id);
+      }
+
+      // Update individual participant stats for winning team members
+      const { data: winnerMembers } = await supabase.from("team_members").select("participant_id").eq("team_id", winnerTeamId);
+      if (winnerMembers) {
+        for (const m of winnerMembers) {
+          const { data: p } = await supabase.from("participants").select("wins, points").eq("id", m.participant_id).single();
+          if (p) {
+            await supabase.from("participants").update({ wins: p.wins + 1, points: p.points + 3 }).eq("id", m.participant_id);
+          }
+        }
+      }
+      // Update individual participant stats for losing team members
+      if (loserTeamId) {
+        const { data: loserMembers } = await supabase.from("team_members").select("participant_id").eq("team_id", loserTeamId);
+        if (loserMembers) {
+          for (const m of loserMembers) {
+            const { data: p } = await supabase.from("participants").select("losses").eq("id", m.participant_id).single();
+            if (p) {
+              await supabase.from("participants").update({ losses: p.losses + 1 }).eq("id", m.participant_id);
+            }
+          }
+        }
       }
     }
   } else {
