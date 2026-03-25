@@ -25,9 +25,12 @@ export type Database = {
           score1: number | null
           score2: number | null
           status: string
+          team1_id: string | null
+          team2_id: string | null
           tournament_id: string
           updated_at: string
           winner_id: string | null
+          winner_team_id: string | null
         }
         Insert: {
           created_at?: string
@@ -39,9 +42,12 @@ export type Database = {
           score1?: number | null
           score2?: number | null
           status?: string
+          team1_id?: string | null
+          team2_id?: string | null
           tournament_id: string
           updated_at?: string
           winner_id?: string | null
+          winner_team_id?: string | null
         }
         Update: {
           created_at?: string
@@ -53,9 +59,12 @@ export type Database = {
           score1?: number | null
           score2?: number | null
           status?: string
+          team1_id?: string | null
+          team2_id?: string | null
           tournament_id?: string
           updated_at?: string
           winner_id?: string | null
+          winner_team_id?: string | null
         }
         Relationships: [
           {
@@ -73,6 +82,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "matches_team1_id_fkey"
+            columns: ["team1_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_team2_id_fkey"
+            columns: ["team2_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "matches_tournament_id_fkey"
             columns: ["tournament_id"]
             isOneToOne: false
@@ -84,6 +107,13 @@ export type Database = {
             columns: ["winner_id"]
             isOneToOne: false
             referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_winner_team_id_fkey"
+            columns: ["winner_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -148,6 +178,68 @@ export type Database = {
         }
         Relationships: []
       }
+      team_members: {
+        Row: {
+          id: string
+          participant_id: string
+          team_id: string
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          team_id: string
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          tournament_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          tournament_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          tournament_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tournament_participants: {
         Row: {
           id: string
@@ -187,6 +279,7 @@ export type Database = {
           created_by: string | null
           date: string
           id: string
+          mode: string
           name: string
           sport: string
           status: string
@@ -197,6 +290,7 @@ export type Database = {
           created_by?: string | null
           date: string
           id?: string
+          mode?: string
           name: string
           sport: string
           status?: string
@@ -207,6 +301,7 @@ export type Database = {
           created_by?: string | null
           date?: string
           id?: string
+          mode?: string
           name?: string
           sport?: string
           status?: string

@@ -30,6 +30,7 @@ export default function Tournaments() {
   const [name, setName] = useState("");
   const [sport, setSport] = useState<string>("");
   const [date, setDate] = useState("");
+  const [mode, setMode] = useState("solo");
 
   useEffect(() => { loadTournaments(); }, []);
 
@@ -43,15 +44,15 @@ export default function Tournaments() {
     setParticipantCounts(counts);
   }
 
-  const resetForm = () => { setName(""); setSport(""); setDate(""); setEditId(null); };
+  const resetForm = () => { setName(""); setSport(""); setDate(""); setMode("solo"); setEditId(null); };
 
   const handleSubmit = async () => {
     if (!name || !sport || !date) return;
     try {
       if (editId) {
-        await api.updateTournament(editId, { name, sport, date });
+        await api.updateTournament(editId, { name, sport, date, mode });
       } else {
-        await api.createTournament({ name, sport, date });
+        await api.createTournament({ name, sport, date, mode });
       }
       resetForm();
       setOpen(false);
@@ -65,6 +66,7 @@ export default function Tournaments() {
     setName(t.name);
     setSport(t.sport);
     setDate(t.date);
+    setMode((t as any).mode || "solo");
     setEditId(t.id);
     setOpen(true);
   };
@@ -105,6 +107,14 @@ export default function Tournaments() {
                   </SelectContent>
                 </Select>
                 <Input type="text" placeholder="Data (ex: 2026-04-15)" value={date} onChange={(e) => setDate(e.target.value)} />
+                <Select value={mode} onValueChange={setMode}>
+                  <SelectTrigger><SelectValue placeholder="Modo de jogo" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="solo">Solo (individual)</SelectItem>
+                    <SelectItem value="duplas">Duplas</SelectItem>
+                    <SelectItem value="equipes">Equipes</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button onClick={handleSubmit} className="w-full">{editId ? "Salvar" : "Criar Torneio"}</Button>
               </div>
             </DialogContent>
@@ -132,6 +142,7 @@ export default function Tournaments() {
               <div className="text-sm text-muted-foreground">
                 <p>📅 {t.date}</p>
                 <p>👥 {participantCounts[t.id] || 0} participantes</p>
+                <p>🎮 {(t as any).mode === "duplas" ? "Duplas" : (t as any).mode === "equipes" ? "Equipes" : "Solo"}</p>
               </div>
               <div className="flex gap-2">
                 <Link to={`/tournaments/${t.id}`} className="flex-1">
