@@ -1,11 +1,20 @@
-import { useRef, useCallback, useSyncExternalStore } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { store } from "@/lib/store";
 
 export function useStore<T>(selector: (s: typeof store) => T): T {
-  const selectorRef = useRef(selector);
-  selectorRef.current = selector;
+  const [value, setValue] = useState(() => selector(store));
 
-  const getSnapshot = useCallback(() => selectorRef.current(store), []);
+  const stableSelector = useCallback(selector, []);
 
-  return useSyncExternalStore(store.subscribe, getSnapshot);
+  useEffect(() => {
+    // Update immediately in case store changed between render and effect
+    setValue(stableSelector(store));
+
+    const unsub = store.subscribe(() => {
+      setValue(stableSelector(store));
+    });
+    return unsub;
+  }, [stableSelector]);
+
+  return value;
 }
