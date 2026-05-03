@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, Share2, Trophy } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as api from "@/lib/supabase-store";
+import ImageUpload from "@/components/ImageUpload";
 
 const sports: SportModality[] = [
   "Futebol",
@@ -28,6 +29,7 @@ interface TournamentRow {
   sport: string;
   date: string;
   status: string;
+  logo_url?: string | null;
 }
 
 export default function Tournaments() {
@@ -40,15 +42,22 @@ export default function Tournaments() {
   const [sport, setSport] = useState<string>("");
   const [date, setDate] = useState("");
   const [mode, setMode] = useState("solo");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     loadTournaments();
+    const ch = supabase
+      .channel("tournaments-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tournaments" }, () => loadTournaments())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, []);
 
   async function loadTournaments() {
     const data = await api.fetchTournaments();
     setTournaments(data);
-    // Fetch participant counts
     const { data: tps } = await supabase.from("tournament_participants").select("tournament_id");
     const counts: Record<string, number> = {};
     tps?.forEach((tp) => {
@@ -58,20 +67,16 @@ export default function Tournaments() {
   }
 
   const resetForm = () => {
-    setName("");
-    setSport("");
-    setDate("");
-    setMode("solo");
-    setEditId(null);
+    setName(""); setSport(""); setDate(""); setMode("solo"); setLogoUrl(null); setEditId(null);
   };
 
   const handleSubmit = async () => {
     if (!name || !sport || !date) return;
     try {
       if (editId) {
-        await api.updateTournament(editId, { name, sport, date, mode });
+        await api.updateTournament(editId, { name, sport, date, mode, logo_url: logoUrl });
       } else {
-        await api.createTournament({ name, sport, date, mode });
+        await api.createTournament({ name, sport, date, mode, logo_url: logoUrl });
       }
       resetForm();
       setOpen(false);
@@ -81,27 +86,38 @@ export default function Tournaments() {
     }
   };
 
-  const handleEdit = (t: TournamentRow) => {
-    setName(t.name);
-    setSport(t.sport);
-    setDate(t.date);
-    setMode((t as any).mode || "solo");
-    setEditId(t.id);
-    setOpen(true);
+  const handleEdit = (t: any) => {
+    setName(t.name); setSport(t.sport); setDate(t.date);
+    setMode(t.mode || "solo"); setLogoUrl(t.logo_url || null);
+    setEditId(t.id); setOpen(true);
   };
 
   const handleDelete = async (id: string) => {
+    try { await api.deleteTournament(id); loadTournaments(); }
+    catch (e: any) { toast.error(e.message); }
+  };
+
+  const handleSharePublic = async (id: string, name: string) => {
+    const url = `${window.location.origin}/public/torneio/${id}`;
     try {
-      await api.deleteTournament(id);
-      loadTournaments();
+      const nav = navigator as any;
+      if (nav.share) {
+        await nav.share({ title: name, text: `Acompanhe o torneio ${name}`, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link público copiado!");
+      }
     } catch (e: any) {
-      toast.error(e.message);
+      if (e.name !== "AbortError") {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link público copiado!");
+      }
     }
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-heading font-bold">Torneios</h1>
           <p className="text-muted-foreground mt-1">
@@ -111,10 +127,7 @@ export default function Tournaments() {
         {isOrganizer && (
           <Dialog
             open={open}
-            onOpenChange={(v) => {
-              setOpen(v);
-              if (!v) resetForm();
-            }}
+            onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}
           >
             <DialogTrigger asChild>
               <Button className="gap-2">
@@ -126,6 +139,7 @@ export default function Tournaments() {
                 <DialogTitle>{editId ? "Editar Torneio" : "Novo Torneio"}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-4">
+                <ImageUpload value={logoUrl} onChange={setLogoUrl} bucket="tournament-logos" label="Logo do torneio" />
                 <Input placeholder="Nome do torneio" value={name} onChange={(e) => setName(e.target.value)} />
                 <Select value={sport} onValueChange={setSport}>
                   <SelectTrigger>
@@ -133,18 +147,11 @@ export default function Tournaments() {
                   </SelectTrigger>
                   <SelectContent>
                     {sports.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Input
-                  type="text"
-                  placeholder="Data (ex: 2026-04-15)"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
+                <Input type="text" placeholder="Data (ex: 2026-04-15)" value={date} onChange={(e) => setDate(e.target.value)} />
                 <Select value={mode} onValueChange={setMode}>
                   <SelectTrigger>
                     <SelectValue placeholder="Modo de jogo" />
@@ -172,9 +179,16 @@ export default function Tournaments() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {tournaments.map((t) => (
             <div key={t.id} className="card-sport p-6 space-y-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-heading font-bold text-lg">{t.name}</h3>
+              <div className="flex items-start gap-3">
+                <div className="w-14 h-14 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                  {t.logo_url ? (
+                    <img src={t.logo_url} alt={t.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <Trophy className="w-6 h-6 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-heading font-bold text-lg truncate">{t.name}</h3>
                   <p className="text-sm text-muted-foreground">{t.sport}</p>
                 </div>
                 <span
@@ -188,12 +202,21 @@ export default function Tournaments() {
                 <p>👥 {participantCounts[t.id] || 0} participantes</p>
                 <p>🎮 {(t as any).mode === "duplas" ? "Duplas" : (t as any).mode === "equipes" ? "Equipes" : "Solo"}</p>
               </div>
-              <div className="flex gap-2">
-                <Link to={`/tournaments/${t.id}`} className="flex-1">
+              <div className="flex gap-2 flex-wrap">
+                <Link to={`/tournaments/${t.id}`} className="flex-1 min-w-[80px]">
                   <Button variant="outline" size="sm" className="w-full gap-1">
                     <Eye className="w-3 h-3" /> Ver
                   </Button>
                 </Link>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => handleSharePublic(t.id, t.name)}
+                  title="Compartilhar link público"
+                >
+                  <Share2 className="w-3 h-3" />
+                </Button>
                 {isOrganizer && (
                   <>
                     <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => handleEdit(t)}>

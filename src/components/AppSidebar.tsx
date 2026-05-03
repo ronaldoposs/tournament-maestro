@@ -13,14 +13,24 @@ const allNavItems = [
   { to: "/reports", label: "Relatórios", icon: FileBarChart, roles: ["organizer"] },
 ];
 
-export default function AppSidebar() {
+interface Props {
+  onNavigate?: () => void;
+  embedded?: boolean;
+}
+
+export default function AppSidebar({ onNavigate, embedded }: Props) {
   const { pathname } = useLocation();
   const { role, displayName } = useAuth();
 
   const navItems = allNavItems.filter((item) => item.roles.includes(role || "participant"));
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
+    <aside
+      className={cn(
+        "h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col",
+        !embedded && "fixed left-0 top-0 z-40"
+      )}
+    >
       <div className="p-6 flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg accent-gradient flex items-center justify-center">
           <Trophy className="w-5 h-5 text-accent-foreground" />
@@ -38,6 +48,7 @@ export default function AppSidebar() {
             <NavLink
               key={to}
               to={to}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200",
                 active

@@ -14,7 +14,7 @@ export async function fetchTournament(id: string) {
   return data;
 }
 
-export async function createTournament(t: { name: string; sport: string; date: string; mode?: string }) {
+export async function createTournament(t: { name: string; sport: string; date: string; mode?: string; logo_url?: string | null }) {
   const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase.from("tournaments").insert({ ...t, created_by: user?.id }).select().single();
   if (error) throw error;
@@ -69,7 +69,7 @@ export async function fetchParticipants() {
   return data;
 }
 
-export async function createParticipant(p: { name: string; team?: string }) {
+export async function createParticipant(p: { name: string; team?: string; avatar_url?: string | null }) {
   const { data, error } = await supabase.from("participants").insert(p).select().single();
   if (error) throw error;
   return data;
@@ -108,6 +108,66 @@ export async function fetchMatches(tournamentId: string) {
   const { data, error } = await supabase.from("matches").select("*").eq("tournament_id", tournamentId).order("round").order("position");
   if (error) throw error;
   return data;
+}
+
+// Upload helpers
+export async function uploadImage(bucket: "tournament-logos" | "participant-avatars", file: File): Promise<string> {
+  const ext = file.name.split(".").pop();
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType: file.type });
+  if (error) throw error;
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// Tournament-scoped ranking (computes from matches in this tournament only)
+export async function fetchTournamentRanking(tournamentId: string) {
+  const [{ data: tps }, { data: matches }, { data: teams }] = await Promise.all([
+    supabase.from("tournament_participants").select("participant_id, participants(*)").eq("tournament_id", tournamentId),
+    supabase.from("matches").select("*").eq("tournament_id", tournamentId).eq("status", "completed"),
+    supabase.from("teams").select("id, team_members(participant_id)").eq("tournament_id", tournamentId),
+  ]);
+
+  const stats = new Map<string, { id: string; name: string; avatar_url: string | null; wins: number; losses: number; points: number }>();
+  (tps || []).forEach((tp: any) => {
+    if (tp.participants) {
+      stats.set(tp.participant_id, {
+        id: tp.participant_id,
+        name: tp.participants.name,
+        avatar_url: tp.participants.avatar_url ?? null,
+        wins: 0, losses: 0, points: 0,
+      });
+    }
+  });
+
+  const teamMembersMap = new Map<string, string[]>();
+  (teams || []).forEach((t: any) => {
+    teamMembersMap.set(t.id, (t.team_members || []).map((m: any) => m.participant_id));
+  });
+
+  const addStat = (pid: string, win: boolean) => {
+    const s = stats.get(pid);
+    if (!s) return;
+    if (win) { s.wins++; s.points += 3; } else { s.losses++; }
+  };
+
+  (matches || []).forEach((m: any) => {
+    if (m.team1_id || m.team2_id) {
+      // team mode
+      const winnerTeam = m.winner_team_id;
+      if (!winnerTeam) return;
+      const loserTeam = winnerTeam === m.team1_id ? m.team2_id : m.team1_id;
+      (teamMembersMap.get(winnerTeam) || []).forEach((pid) => addStat(pid, true));
+      if (loserTeam) (teamMembersMap.get(loserTeam) || []).forEach((pid) => addStat(pid, false));
+    } else {
+      if (!m.winner_id) return;
+      const loser = m.winner_id === m.participant1_id ? m.participant2_id : m.participant1_id;
+      addStat(m.winner_id, true);
+      if (loser) addStat(loser, false);
+    }
+  });
+
+  return Array.from(stats.values()).sort((a, b) => b.points - a.points || b.wins - a.wins);
 }
 
 export async function generateBracket(tournamentId: string, isTeamMode = false) {

@@ -120,6 +120,7 @@ export type Database = {
       }
       participants: {
         Row: {
+          avatar_url: string | null
           created_at: string
           draws: number
           id: string
@@ -131,6 +132,7 @@ export type Database = {
           wins: number
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           draws?: number
           id?: string
@@ -142,6 +144,7 @@ export type Database = {
           wins?: number
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           draws?: number
           id?: string
@@ -279,6 +282,7 @@ export type Database = {
           created_by: string | null
           date: string
           id: string
+          logo_url: string | null
           mode: string
           name: string
           sport: string
@@ -290,6 +294,7 @@ export type Database = {
           created_by?: string | null
           date: string
           id?: string
+          logo_url?: string | null
           mode?: string
           name: string
           sport: string
@@ -301,6 +306,7 @@ export type Database = {
           created_by?: string | null
           date?: string
           id?: string
+          logo_url?: string | null
           mode?: string
           name?: string
           sport?: string

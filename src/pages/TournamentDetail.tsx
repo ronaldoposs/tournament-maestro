@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, GitBranch, UserPlus, Users, X, Plus, Trash2, Search } from "lucide-react";
+import { ArrowLeft, GitBranch, UserPlus, Users, X, Plus, Trash2, Search, Trophy, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import * as api from "@/lib/supabase-store";
@@ -26,7 +26,29 @@ export default function TournamentDetail() {
   const [selectedMember, setSelectedMember] = useState("");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadAll(); }, [id]);
+  useEffect(() => {
+    loadAll();
+    if (!id) return;
+    const ch = supabase
+      .channel(`tournament-${id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "matches", filter: `tournament_id=eq.${id}` }, () => loadAll())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [id]);
+
+  const handleSharePublic = async () => {
+    const url = `${window.location.origin}/public/torneio/${id}`;
+    try {
+      const nav = navigator as any;
+      if (nav.share) await nav.share({ title: tournament.name, url });
+      else { await navigator.clipboard.writeText(url); toast.success("Link público copiado!"); }
+    } catch (e: any) {
+      if (e.name !== "AbortError") {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link público copiado!");
+      }
+    }
+  };
 
   async function loadAll() {
     if (!id) return;
@@ -161,17 +183,27 @@ export default function TournamentDetail() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <Button variant="ghost" size="icon" onClick={() => navigate("/tournaments")}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <div>
-          <h1 className="text-3xl font-heading font-bold">{tournament.name}</h1>
-          <p className="text-muted-foreground">{tournament.sport} • {tournament.date} • {modeLabel}</p>
+        <div className="w-14 h-14 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
+          {tournament.logo_url ? (
+            <img src={tournament.logo_url} alt={tournament.name} className="w-full h-full object-cover" />
+          ) : (
+            <Trophy className="w-6 h-6 text-muted-foreground" />
+          )}
         </div>
-        <span className={`stat-badge ml-auto ${tournament.status === "active" ? "bg-accent/15 text-accent" : tournament.status === "finished" ? "bg-muted text-muted-foreground" : "bg-sport-orange/15 text-sport-orange"}`}>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl md:text-3xl font-heading font-bold truncate">{tournament.name}</h1>
+          <p className="text-muted-foreground text-sm">{tournament.sport} • {tournament.date} • {modeLabel}</p>
+        </div>
+        <span className={`stat-badge ${tournament.status === "active" ? "bg-accent/15 text-accent" : tournament.status === "finished" ? "bg-muted text-muted-foreground" : "bg-sport-orange/15 text-sport-orange"}`}>
           {tournament.status === "active" ? "Ativo" : tournament.status === "finished" ? "Finalizado" : "Próximo"}
         </span>
+        <Button variant="outline" size="sm" className="gap-2" onClick={handleSharePublic}>
+          <Share2 className="w-4 h-4" /> Página pública
+        </Button>
       </div>
 
       {/* Participants Section */}
