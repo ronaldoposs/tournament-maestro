@@ -26,7 +26,29 @@ export default function TournamentDetail() {
   const [selectedMember, setSelectedMember] = useState("");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadAll(); }, [id]);
+  useEffect(() => {
+    loadAll();
+    if (!id) return;
+    const ch = supabase
+      .channel(`tournament-${id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "matches", filter: `tournament_id=eq.${id}` }, () => loadAll())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [id]);
+
+  const handleSharePublic = async () => {
+    const url = `${window.location.origin}/public/torneio/${id}`;
+    try {
+      const nav = navigator as any;
+      if (nav.share) await nav.share({ title: tournament.name, url });
+      else { await navigator.clipboard.writeText(url); toast.success("Link público copiado!"); }
+    } catch (e: any) {
+      if (e.name !== "AbortError") {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link público copiado!");
+      }
+    }
+  };
 
   async function loadAll() {
     if (!id) return;
