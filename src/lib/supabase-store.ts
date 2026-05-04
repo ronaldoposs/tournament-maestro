@@ -244,6 +244,9 @@ export async function fetchTournamentRanking(tournamentId: string) {
         .sort((a, b) => a!.name.localeCompare(b!.name))
         .map((participant) => ({
           ...participant!,
+          wins: team.wins,
+          losses: team.losses,
+          points: team.points,
           position: teamIndex + 1,
         }))
     );
