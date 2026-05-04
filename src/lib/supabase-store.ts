@@ -167,7 +167,19 @@ export async function fetchTournamentRanking(tournamentId: string) {
     }
   });
 
-  return Array.from(stats.values()).sort((a, b) => b.points - a.points || b.wins - a.wins);
+  const sorted = Array.from(stats.values()).sort((a, b) => b.points - a.points || b.wins - a.wins);
+  // Dense rank: tied participants (same points & wins) share the same position.
+  // Critical for team modes (duos/teams) where all members of a team must share the same rank.
+  let lastPos = 0;
+  let lastKey = "";
+  return sorted.map((s, i) => {
+    const key = `${s.points}|${s.wins}`;
+    if (key !== lastKey) {
+      lastPos = i + 1;
+      lastKey = key;
+    }
+    return { ...s, position: lastPos };
+  });
 }
 
 export async function generateBracket(tournamentId: string, isTeamMode = false) {
