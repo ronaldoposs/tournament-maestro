@@ -162,21 +162,23 @@ export default function PublicTournament() {
                   </tr>
                 </thead>
                 <tbody>
-                  {ranking.map((p, i) => (
+                  {ranking.map((p, i) => {
+                    const pos = p.position ?? i + 1;
+                    return (
                     <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                       <td className="p-3 text-center">
                         <span
                           className={`w-8 h-8 rounded-full inline-flex items-center justify-center text-sm font-bold ${
-                            i === 0
+                            pos === 1
                               ? "bg-sport-gold text-foreground"
-                              : i === 1
+                              : pos === 2
                               ? "bg-secondary text-secondary-foreground"
-                              : i === 2
+                              : pos === 3
                               ? "bg-sport-orange/20 text-sport-orange"
                               : "text-muted-foreground"
                           }`}
                         >
-                          {i + 1}
+                          {pos}
                         </span>
                       </td>
                       <td className="p-3">
