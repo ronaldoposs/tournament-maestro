@@ -36,18 +36,9 @@ export default function TournamentDetail() {
     return () => { supabase.removeChannel(ch); };
   }, [id]);
 
-  const handleSharePublic = async () => {
+  const handleSharePublic = () => {
     const url = `${window.location.origin}/public/torneio/${id}`;
-    try {
-      const nav = navigator as any;
-      if (nav.share) await nav.share({ title: tournament.name, url });
-      else { await navigator.clipboard.writeText(url); toast.success("Link público copiado!"); }
-    } catch (e: any) {
-      if (e.name !== "AbortError") {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link público copiado!");
-      }
-    }
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   async function loadAll() {
