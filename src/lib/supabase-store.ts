@@ -344,7 +344,7 @@ export async function generateBracket(tournamentId: string, isTeamMode = false) 
   const { data: insertedMatches, error } = await supabase.from("matches").insert(matchInserts).select();
   if (error) throw error;
 
-  // Advance byes to round 2
+  // Advance byes to round 2 and credit BYE wins to participant stats
   const round1 = insertedMatches!.filter((m) => m.round === 1);
   const round2 = insertedMatches!.filter((m) => m.round === 2);
 
@@ -356,6 +356,22 @@ export async function generateBracket(tournamentId: string, isTeamMode = false) 
       if (nextMatch) {
         const field = idx % 2 === 0 ? p1Field : p2Field;
         await supabase.from("matches").update({ [field]: winnerId }).eq("id", nextMatch.id);
+      }
+
+      // Credit a win to participant(s) for the BYE
+      if (isTeamMode) {
+        const { data: members } = await supabase.from("team_members").select("participant_id").eq("team_id", winnerId);
+        for (const tm of members || []) {
+          const { data: p } = await supabase.from("participants").select("wins, points").eq("id", tm.participant_id).single();
+          if (p) {
+            await supabase.from("participants").update({ wins: p.wins + 1, points: p.points + 3 }).eq("id", tm.participant_id);
+          }
+        }
+      } else {
+        const { data: p } = await supabase.from("participants").select("wins, points").eq("id", winnerId).single();
+        if (p) {
+          await supabase.from("participants").update({ wins: p.wins + 1, points: p.points + 3 }).eq("id", winnerId);
+        }
       }
     }
   }
