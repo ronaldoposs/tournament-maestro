@@ -66,12 +66,19 @@ function themeFor(pos: number): Theme {
 const W = 1080;
 const H = 1920;
 
-async function loadImage(url: string): Promise<HTMLImageElement> {
+async function loadImage(url: string, timeoutMs = 5000): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = reject;
+    const timer = setTimeout(() => reject(new Error("image load timeout")), timeoutMs);
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve(img);
+    };
+    img.onerror = (e) => {
+      clearTimeout(timer);
+      reject(e);
+    };
     img.src = url;
   });
 }
@@ -95,14 +102,33 @@ export default function ShareCard({ open, onOpenChange, name, position, points, 
   useEffect(() => {
     if (!open) return;
     setDataUrl(null);
-    render();
+    setRendering(true);
+    // Wait for portal/dialog to mount canvas before drawing
+    let cancelled = false;
+    const tryRender = (attempt = 0) => {
+      if (cancelled) return;
+      if (canvasRef.current) {
+        render().catch((e) => {
+          console.error("ShareCard render error", e);
+          setRendering(false);
+        });
+      } else if (attempt < 20) {
+        requestAnimationFrame(() => tryRender(attempt + 1));
+      } else {
+        console.error("ShareCard: canvas ref never attached");
+        setRendering(false);
+      }
+    };
+    requestAnimationFrame(() => tryRender());
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, name, position]);
 
   async function render() {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    setRendering(true);
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext("2d")!;
