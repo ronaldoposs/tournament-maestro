@@ -145,11 +145,109 @@ export async function fetchTournamentRanking(tournamentId: string) {
     teamMembersMap.set(t.id, (t.team_members || []).map((m: any) => m.participant_id));
   });
 
+  const isTeamMode = teamMembersMap.size > 0;
+
   const addStat = (pid: string, win: boolean) => {
     const s = stats.get(pid);
     if (!s) return;
     if (win) { s.wins++; s.points += 3; } else { s.losses++; }
   };
+
+  if (isTeamMode) {
+    const totalRounds = Math.max(0, ...(matches || []).map((m: any) => m.round || 0));
+    const teamStats = new Map<string, {
+      id: string;
+      wins: number;
+      losses: number;
+      points: number;
+      scoreFor: number;
+      scoreAgainst: number;
+      eliminationRound: number;
+      champion: boolean;
+      members: string[];
+    }>();
+
+    teamMembersMap.forEach((members, teamId) => {
+      teamStats.set(teamId, {
+        id: teamId,
+        wins: 0,
+        losses: 0,
+        points: 0,
+        scoreFor: 0,
+        scoreAgainst: 0,
+        eliminationRound: 0,
+        champion: false,
+        members,
+      });
+    });
+
+    (matches || []).forEach((m: any) => {
+      if (!m.team1_id && !m.team2_id) return;
+
+      const team1 = m.team1_id ? teamStats.get(m.team1_id) : null;
+      const team2 = m.team2_id ? teamStats.get(m.team2_id) : null;
+      const score1 = m.score1 ?? 0;
+      const score2 = m.score2 ?? 0;
+
+      if (team1) {
+        team1.scoreFor += score1;
+        team1.scoreAgainst += score2;
+      }
+      if (team2) {
+        team2.scoreFor += score2;
+        team2.scoreAgainst += score1;
+      }
+
+      if (m.winner_team_id) {
+        const winner = teamStats.get(m.winner_team_id);
+        const loserTeamId = m.winner_team_id === m.team1_id ? m.team2_id : m.team1_id;
+        const loser = loserTeamId ? teamStats.get(loserTeamId) : null;
+
+        if (winner) {
+          winner.wins += 1;
+          winner.points += 3;
+          if (m.round === totalRounds) winner.champion = true;
+        }
+
+        if (loser) {
+          loser.losses += 1;
+          loser.eliminationRound = Math.max(loser.eliminationRound, m.round ?? 0);
+        }
+      }
+    });
+
+    const sortedTeams = Array.from(teamStats.values()).sort((a, b) => {
+      const aPlacement = a.champion ? totalRounds + 1 : a.eliminationRound;
+      const bPlacement = b.champion ? totalRounds + 1 : b.eliminationRound;
+      const byPlacement = bPlacement - aPlacement;
+      if (byPlacement !== 0) return byPlacement;
+
+      const byWins = b.wins - a.wins;
+      if (byWins !== 0) return byWins;
+
+      const byPoints = b.points - a.points;
+      if (byPoints !== 0) return byPoints;
+
+      const byDiff = (b.scoreFor - b.scoreAgainst) - (a.scoreFor - a.scoreAgainst);
+      if (byDiff !== 0) return byDiff;
+
+      const byScored = b.scoreFor - a.scoreFor;
+      if (byScored !== 0) return byScored;
+
+      return a.id.localeCompare(b.id);
+    });
+
+    return sortedTeams.flatMap((team, teamIndex) =>
+      [...team.members]
+        .map((participantId) => stats.get(participantId))
+        .filter(Boolean)
+        .sort((a, b) => a!.name.localeCompare(b!.name))
+        .map((participant) => ({
+          ...participant!,
+          position: teamIndex + 1,
+        }))
+    );
+  }
 
   (matches || []).forEach((m: any) => {
     if (m.team1_id || m.team2_id) {
@@ -168,8 +266,7 @@ export async function fetchTournamentRanking(tournamentId: string) {
   });
 
   const sorted = Array.from(stats.values()).sort((a, b) => b.points - a.points || b.wins - a.wins);
-  // Dense rank: tied participants (same points & wins) share the same position.
-  // Critical for team modes (duos/teams) where all members of a team must share the same rank.
+  // Dense rank for solo mode only.
   let lastPos = 0;
   let lastKey = "";
   return sorted.map((s, i) => {
