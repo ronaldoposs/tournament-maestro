@@ -66,12 +66,19 @@ function themeFor(pos: number): Theme {
 const W = 1080;
 const H = 1920;
 
-async function loadImage(url: string): Promise<HTMLImageElement> {
+async function loadImage(url: string, timeoutMs = 5000): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = reject;
+    const timer = setTimeout(() => reject(new Error("image load timeout")), timeoutMs);
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve(img);
+    };
+    img.onerror = (e) => {
+      clearTimeout(timer);
+      reject(e);
+    };
     img.src = url;
   });
 }
