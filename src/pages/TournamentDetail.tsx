@@ -384,6 +384,8 @@ function MatchCard({ match, name1, name2, isOrganizer, isTeamMode, onResult }: {
   const winner1 = isTeamMode ? match.winner_team_id === match.team1_id : match.winner_id === match.participant1_id;
   const winner2 = isTeamMode ? match.winner_team_id === match.team2_id : match.winner_id === match.participant2_id;
   const canRecord = isOrganizer && match.status === "pending" && hasP1 && hasP2;
+  // Allow undo only on real (non-BYE) completed matches
+  const canUndo = isOrganizer && match.status === "completed" && hasP1 && hasP2;
 
   const handleRecord = async () => {
     const score1 = parseInt(s1);
@@ -391,6 +393,16 @@ function MatchCard({ match, name1, name2, isOrganizer, isTeamMode, onResult }: {
     if (isNaN(score1) || isNaN(score2) || score1 === score2) return;
     try {
       await api.recordResult(match.id, score1, score2);
+      onResult();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const handleUndo = async () => {
+    if (!confirm("Desfazer este resultado? As próximas rodadas serão reabertas.")) return;
+    try {
+      await api.undoResult(match.id);
+      setS1(""); setS2("");
+      toast.success("Resultado desfeito.");
       onResult();
     } catch (e: any) { toast.error(e.message); }
   };
@@ -416,6 +428,9 @@ function MatchCard({ match, name1, name2, isOrganizer, isTeamMode, onResult }: {
       </div>
       {canRecord && (
         <Button size="sm" className="w-full text-xs mt-1" onClick={handleRecord}>Registrar</Button>
+      )}
+      {canUndo && (
+        <Button size="sm" variant="outline" className="w-full text-xs mt-1" onClick={handleUndo}>Desfazer</Button>
       )}
     </div>
   );
