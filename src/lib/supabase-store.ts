@@ -451,3 +451,115 @@ export async function recordResult(matchId: string, score1: number, score2: numb
     await supabase.from("tournaments").update({ status: "finished" }).eq("id", match.tournament_id);
   }
 }
+
+// Undo a previously recorded match result. Reverts stats and clears any
+// downstream propagation (next match slot + cascades) so the organizer can
+// re-enter the score and the bracket re-progresses correctly.
+export async function undoResult(matchId: string) {
+  const { data: match } = await supabase.from("matches").select("*").eq("id", matchId).single();
+  if (!match || match.status !== "completed") return;
+
+  const isTeamMode = !!(match.team1_id || match.team2_id);
+  const score1 = match.score1 ?? 0;
+  const score2 = match.score2 ?? 0;
+  const isDraw = score1 === score2;
+
+  // 1) Revert participant stats (only if there was actually a winner recorded)
+  if (!isDraw) {
+    if (isTeamMode) {
+      const winnerTeamId = match.winner_team_id;
+      const loserTeamId = winnerTeamId === match.team1_id ? match.team2_id : match.team1_id;
+
+      if (winnerTeamId) {
+        const { data: winnerMembers } = await supabase.from("team_members").select("participant_id").eq("team_id", winnerTeamId);
+        for (const m of winnerMembers || []) {
+          const { data: p } = await supabase.from("participants").select("wins, points").eq("id", m.participant_id).single();
+          if (p) {
+            await supabase.from("participants").update({
+              wins: Math.max(0, p.wins - 1),
+              points: Math.max(0, p.points - 3),
+            }).eq("id", m.participant_id);
+          }
+        }
+      }
+      if (loserTeamId) {
+        const { data: loserMembers } = await supabase.from("team_members").select("participant_id").eq("team_id", loserTeamId);
+        for (const m of loserMembers || []) {
+          const { data: p } = await supabase.from("participants").select("losses").eq("id", m.participant_id).single();
+          if (p) {
+            await supabase.from("participants").update({ losses: Math.max(0, p.losses - 1) }).eq("id", m.participant_id);
+          }
+        }
+      }
+    } else {
+      const winnerId = match.winner_id;
+      const loserId = winnerId === match.participant1_id ? match.participant2_id : match.participant1_id;
+      if (winnerId) {
+        const { data: w } = await supabase.from("participants").select("wins, points").eq("id", winnerId).single();
+        if (w) {
+          await supabase.from("participants").update({
+            wins: Math.max(0, w.wins - 1),
+            points: Math.max(0, w.points - 3),
+          }).eq("id", winnerId);
+        }
+      }
+      if (loserId) {
+        const { data: l } = await supabase.from("participants").select("losses").eq("id", loserId).single();
+        if (l) {
+          await supabase.from("participants").update({ losses: Math.max(0, l.losses - 1) }).eq("id", loserId);
+        }
+      }
+    }
+  }
+
+  // 2) Cascade-clear downstream matches (where this winner was advanced)
+  const winnerField = isTeamMode ? "winner_team_id" : "winner_id";
+  const slot1Field = isTeamMode ? "team1_id" : "participant1_id";
+  const slot2Field = isTeamMode ? "team2_id" : "participant2_id";
+  const scoreField = isTeamMode ? "winner_team_id" : "winner_id";
+
+  let currentRound = match.round;
+  let currentPosition = match.position;
+  // walk forward through subsequent rounds, undoing any advanced slot/result
+  // We cap at 16 to avoid infinite loops.
+  for (let i = 0; i < 16; i++) {
+    const nextRound = currentRound + 1;
+    const nextPosition = Math.floor(currentPosition / 2);
+    const { data: next } = await supabase
+      .from("matches").select("*")
+      .eq("tournament_id", match.tournament_id).eq("round", nextRound).eq("position", nextPosition)
+      .maybeSingle();
+    if (!next) break;
+
+    const slotField = currentPosition % 2 === 0 ? slot1Field : slot2Field;
+    const update: Record<string, unknown> = { [slotField]: null };
+
+    // If this downstream match had also been completed, we need to revert its
+    // stats too (recursively undo) before clearing it.
+    if (next.status === "completed") {
+      await undoResult(next.id);
+    }
+
+    // Reset this match to pending and clear scores + winner
+    update.status = "pending";
+    update.score1 = null;
+    update.score2 = null;
+    update[scoreField] = null;
+    await supabase.from("matches").update(update).eq("id", next.id);
+
+    currentRound = nextRound;
+    currentPosition = nextPosition;
+  }
+
+  // 3) Reset this match itself to pending
+  const resetUpdate: Record<string, unknown> = {
+    status: "pending",
+    score1: null,
+    score2: null,
+    [winnerField]: null,
+  };
+  await supabase.from("matches").update(resetUpdate).eq("id", matchId);
+
+  // 4) Tournament back to active (since not all matches are completed anymore)
+  await supabase.from("tournaments").update({ status: "active" }).eq("id", match.tournament_id);
+}
