@@ -260,7 +260,7 @@ export default function PublicTournament() {
           open={shareIdx !== null}
           onOpenChange={(v) => !v && setShareIdx(null)}
           name={selected.name}
-          position={(shareIdx ?? 0) + 1}
+          position={selected.position ?? (shareIdx ?? 0) + 1}
           points={selected.points}
           wins={selected.wins}
           losses={selected.losses}
