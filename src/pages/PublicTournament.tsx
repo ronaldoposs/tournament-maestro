@@ -205,7 +205,8 @@ export default function PublicTournament() {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
